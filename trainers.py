@@ -416,7 +416,16 @@ class BasicTrainer(object):
         """Save policy, optimizer, and scheduler state to disk."""
 
         policy_state_dict = self.policy.state_dict()
-        self.write_state_dict(self.example_counter, policy_state_dict, metrics, 'policy.pt', output_dir)
+        if self.config.use_lora:
+            output_path = os.path.join(output_dir, "adapter_model/")
+            os.makedirs(output_path, exist_ok=True)
+            torch.save({
+                'step_idx': self.example_counter,
+                'metrics': metrics if metrics is not None else {},
+            }, os.path.join(output_dir, "log.pt"))
+            self.policy.save_pretrained(output_path)
+        else:
+            self.write_state_dict(self.example_counter, policy_state_dict, metrics, 'policy.pt', output_dir)
         del policy_state_dict
 
         optimizer_state_dict = self.optimizer.state_dict()

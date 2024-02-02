@@ -14,6 +14,14 @@ import socket
 from typing import Optional, Set
 import resource
 
+from peft import (
+    LoraConfig,
+    PeftModel,
+    TaskType,
+    get_peft_model,
+    prepare_model_for_kbit_training
+)
+
 
 OmegaConf.register_new_resolver("get_local_run_dir", lambda exp_name, local_dirs: get_local_run_dir(exp_name, local_dirs))
 
@@ -82,6 +90,20 @@ def main(config: DictConfig):
     policy_dtype = getattr(torch, config.model.policy_dtype)
     policy = transformers.AutoModelForCausalLM.from_pretrained(
         config.model.name_or_path, cache_dir=get_local_dir(config.local_dirs), low_cpu_mem_usage=True, torch_dtype=policy_dtype, **model_kwargs)
+    if config.use_lora:
+        if config.lora_target_modules:
+            lora_target_modules = config.lora_target_modules
+        else:
+            lora_target_modules = None
+        peft_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            inference_mode=False,
+            r=config.lora_r,
+            lora_alpha=config.lora_alpha,
+            lora_dropout=config.lora_dropout,
+            target_modules=lora_target_modules,
+        )
+        policy = get_peft_model(policy, peft_config)
     disable_dropout(policy)
 
     if config.loss.name in {'dpo', 'ipo'}:
